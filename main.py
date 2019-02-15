@@ -8,6 +8,9 @@ from imutils.video import VideoStream
 
 import datetime
 
+from models import Object 
+from models import ObjectManager 
+
 ap = argparse.ArgumentParser()
 ap.add_argument('-i', '--image', help = 'path to input image')
 ap.add_argument('-v', '--video', help= 'path to input video')
@@ -31,7 +34,7 @@ def draw_prediction(img, class_id, confidence, x, y, x_plus_w, y_plus_h):
     label = str(classes[class_id])
     color = COLORS[class_id]
     cv2.rectangle(img, (x,y), (x_plus_w,y_plus_h), color, 2)
-    cv2.putText(img, "obj", (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+    cv2.putText(img, str(class_id), (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
 classes = None
 
@@ -60,6 +63,9 @@ count = 0
 
 # create a multitracker to object tracking
 multiTracker = None
+
+# init ObjectManager
+om = None
 
 vs = None
 frame = None
@@ -126,22 +132,30 @@ while True:
                     confidences.append(float(confidence))
                     # boxes.append([x, y, w, h])
         indices = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
-        for i in indices:
-            box = boxes[i[0]]
-            (x, y, w, h) = box
-            confidence = confidences[i[0]]
-            draw_prediction(frame, class_id, confidence, round(x), round(y), round(x+w), round(y+h))
-            tracker = cv2.TrackerKCF_create()
-            multiTracker.add(tracker, frame, box)
+        # create ObjectManager
+        om = ObjectManager(frame, boxes, confidences, indices)
+
+        # for i in indices:
+        #     box = boxes[i[0]]
+        #     (x, y, w, h) = box
+        #     confidence = confidences[i[0]]
+        #     draw_prediction(frame, class_id, confidence, round(x), round(y), round(x+w), round(y+h))
+        #     tracker = cv2.TrackerKCF_create()
+        #     multiTracker.add(tracker, frame, box)
     else:
-        (success, boxes) = multiTracker.update(frame)
-        print(multiTracker.getObjects())
-        for bb in enumerate(boxes):
-            (success, box) = bb
+        # (success, boxes) = multiTracker.update(frame)
+        # for bb in enumerate(boxes):
+        #     (success, box) = bb
+        #     (x, y, w, h) = box
+        #     draw_prediction(frame, 0, 1, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
+        objboxes = om.update(frame)
+        print(objboxes)
+        for (success, box, id, confidence) in objboxes:
+            print(success, box)
             (x, y, w, h) = box
-            draw_prediction(frame, 0, 1, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
+            draw_prediction(frame, id, confidence, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
     # show the output frame
-    cv2.imshow("Object detector from camera stream", frame)
+    cv2.imshow("Object detector", frame)
     key = cv2.waitKey(1) & 0xFF
 
     # if the 'q' key is pressed, break from the loop
