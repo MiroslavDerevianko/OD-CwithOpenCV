@@ -1,0 +1,4 @@
+python3 main.py --config=yolo2-tiny.cfg --model=yolo2-tiny.weights --classes=classes.txt --width=416 --height=416 --scale=0.00392 --rgb\
+python3 main.py --image images/1.jpg --config yolov3.cfg --weights yolov3.weights --classes classes.txt
+# START WITH VIDEO
+python3 main.py --video videos/1.mp4 --config yolov3_2.cfg --weights yolov3_2.weights --classes classes.txt
