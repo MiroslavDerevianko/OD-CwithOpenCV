@@ -64,8 +64,8 @@ count = 0
 # create a multitracker to object tracking
 multiTracker = None
 
-# init ObjectManager
-om = None
+# create ObjectManager
+om = ObjectManager()
 
 vs = None
 frame = None
@@ -99,24 +99,24 @@ while True:
     (h, w) = frame.shape[:2]
     # blob = cv2.dnn.blobFromImage(cv2.resize(frame, (416, 416)), 0.5, (416, 416), (103.93, 116.77, 123.68))
     blob = cv2.dnn.blobFromImage(frame, scale, (416,416), (0,0,0), True, crop=False)
-    # pass the blob through the network and obtain the detections and predictions
-    net.setInput(blob)
-    start = datetime.datetime.now()
-    outs = net.forward(get_output_layers(net))
-    end = datetime.datetime.now()
-    print(end-start)
-    if count > 10:
+    if count > 15:
         count = 0
     if count == 0:
-        multiTracker = cv2.MultiTracker_create()
+        # multiTracker = cv2.MultiTracker_create()
         boxes = []
         confidences = []
+        # pass the blob through the network and obtain the detections and predictions
+        net.setInput(blob)
+        start = datetime.datetime.now()
+        outs = net.forward(get_output_layers(net))
+        end = datetime.datetime.now()
+        print(end-start)
         for out in outs:
             for detection in out:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.2:
+                if confidence > conf_threshold:
                     center_x = int(detection[0] * Width)
                     center_y = int(detection[1] * Height)
                     w = int(detection[2] * Width)
@@ -131,9 +131,9 @@ while True:
                     # class_ids.append(class_id)
                     confidences.append(float(confidence))
                     # boxes.append([x, y, w, h])
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
-        # create ObjectManager
-        om = ObjectManager(frame, boxes, confidences, indices)
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
+
+        om.setNewDetection(frame, boxes, confidences, indices)
 
         # for i in indices:
         #     box = boxes[i[0]]
@@ -149,9 +149,9 @@ while True:
         #     (x, y, w, h) = box
         #     draw_prediction(frame, 0, 1, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
         objboxes = om.update(frame)
-        print(objboxes)
+        # print(objboxes)
         for (success, box, id, confidence) in objboxes:
-            print(success, box)
+            # print(success, box)
             (x, y, w, h) = box
             draw_prediction(frame, id, confidence, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
     # show the output frame
