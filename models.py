@@ -1,8 +1,13 @@
 import numpy
 import cv2
+import datetime
+import math
+
+from collections import deque
 
 class Object:
 
+    MAX_STATE_NUMB = 4
     # dU - changes of Speed
     # dA - changes of Acceleration
     # vec - vector of move
@@ -11,13 +16,14 @@ class Object:
     
     def __init__(self, id, frame, bbox, confidence):
         self.id = id
-        self.states = []
-        self.states.append(bbox)
+        self.states = deque([], self.MAX_STATE_NUMB)
+        self.addState(bbox)
         self.confidence = confidence
         # creating tracker
         # self.tracker = cv2.TrackerKCF_create()
         self.tracker = cv2.TrackerCSRT_create()
         self.tracker.init(frame, bbox)
+
     def getParam(self):
         return (self.id, self.getLastBox(), self.confidence)
 
@@ -30,19 +36,49 @@ class Object:
         center_y = y + h / 2
         return [center_x, center_y]
 
-    def updateTracker(self, frame):
+    def _getWidthAndHeight(self, box):
+        (x, y, w, h) = box
+        return (w, h)
+
+    def updateTracker(self, frame, withSafeState):
         (success, box) = self.tracker.update(frame)
-        if success == True:
-            self.states.append(box)
-        else:
-            print("Object Lost")
+        if success == True and withSafeState:
+            self.addState(box)
         return (success, box, self.id, self.confidence)
 
     def reinitTracker(self, frame, bbox):
         self.tracker.init(frame, bbox)
         self.tracker.update(frame)
 
-    # def _calcdU(self):
+    def addState(self, bbox):
+        self.states.append(bbox)
+        if (len(self.states) == self.MAX_STATE_NUMB):
+            self.calculation(self.states)
+            for i in range(0, len(self.states) -1):
+                self.states.popleft()
+
+    def _calcLength(self, centerA, centerB):
+        (x1, y1) = centerA
+        (x2, y2) = centerB
+        return math.sqrt((x2 -x1)**2 + (y2 - y1)**2)
+
+    def _calcAngle(self, centerA, centerB):
+        (x1, y1) = centerA
+        (x2, y2) = centerB
+        return (y2 - y1) / math.sqrt((x2 -x1)**2 + (y2 - y1)**2)
+        
+    def calculation(self, states):
+        dU = self._calcdU(states)
+
+    def _calcdU(self, states):
+        changesdU = []
+        changesAngle = []
+        changesHW = []
+        for i in range(0, len(states) - 1):
+            changesdU.append(self._calcLength(self._getCenter(states[i]), self._getCenter(states[i + 1])))
+            changesAngle.append(self._calcAngle(self._getCenter(states[i]), self._getCenter(states[i + 1])))
+        print(self.id, changesdU)
+        print(changesAngle)
     # def _calcdA(self):
     # def _calcdHW(self):
     
@@ -56,14 +92,15 @@ class ObjectManager:
         # init start of IDs
         self.emptyID = 0
         self.listOfObject = []
+        self.lastCalulationTime = None
     
     def getList(self):
         return self.listOfObject
 
-    def update(self, frame):
+    def update(self, frame, withSafeState):
         boxes = []
         for obj in self.listOfObject:
-            boxes.append(obj.updateTracker(frame))
+            boxes.append(obj.updateTracker(frame, withSafeState))
         return boxes
 
     def _getFreeId(self):
@@ -117,7 +154,3 @@ class ObjectManager:
                     newlist.append(newobj)
             print("NEW LIST:", len(newlist))
             self.listOfObject.extend(newlist)
-
-
-        
-

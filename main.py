@@ -86,7 +86,6 @@ while True:
         frame = frame[1] if args.video else frame
         
     if args.image != None:
-        print(args.image)
         frame = cv2.imread(args.image)
     
     if frame is None:
@@ -134,7 +133,7 @@ while True:
         indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
 
         om.setNewDetection(frame, boxes, confidences, indices)
-
+    
         # for i in indices:
         #     box = boxes[i[0]]
         #     (x, y, w, h) = box
@@ -148,7 +147,8 @@ while True:
         #     (success, box) = bb
         #     (x, y, w, h) = box
         #     draw_prediction(frame, 0, 1, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
-        objboxes = om.update(frame)
+        withSafeState = True if count == 4 or count == 8 or count == 12 or count == 15 else False
+        objboxes = om.update(frame, withSafeState)
         # print(objboxes)
         for (success, box, id, confidence) in objboxes:
             # print(success, box)
@@ -162,7 +162,7 @@ while True:
     if key == ord("q"):
         break
     count += 1
-    print(count)
+    # print(count)
 
 # cleanup and closing frame
 cv2.destroyAllWindows()
