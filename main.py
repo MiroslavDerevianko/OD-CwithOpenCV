@@ -30,11 +30,13 @@ def get_output_layers(net):
 
     return output_layers
 
-def draw_prediction(img, class_id, confidence, x, y, x_plus_w, y_plus_h):
+def draw_prediction(img, class_id, danger, x, y, x_plus_w, y_plus_h):
     label = str(classes[class_id])
     color = COLORS[class_id]
     cv2.rectangle(img, (x,y), (x_plus_w,y_plus_h), color, 2)
-    cv2.putText(img, str(class_id), (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+    text = str(class_id)
+    text += " danger" if (danger) else ""
+    cv2.putText(img, text, (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
 classes = None
 
@@ -96,20 +98,21 @@ while True:
     frame = imutils.resize(frame, width=Width, height=Height)
     # grab the frame dimensions and convert it to a blob
     (h, w) = frame.shape[:2]
-    # blob = cv2.dnn.blobFromImage(cv2.resize(frame, (416, 416)), 0.5, (416, 416), (103.93, 116.77, 123.68))
-    blob = cv2.dnn.blobFromImage(frame, scale, (416,416), (0,0,0), True, crop=False)
-    if count > 15:
+  
+    if count > 10:
         count = 0
     if count == 0:
         # multiTracker = cv2.MultiTracker_create()
         boxes = []
         confidences = []
+        # blob = cv2.dnn.blobFromImage(cv2.resize(frame, (416, 416)), 0.5, (416, 416), (103.93, 116.77, 123.68))
+        blob = cv2.dnn.blobFromImage(frame, scale, (416,416), (0,0,0), True, crop=False)
         # pass the blob through the network and obtain the detections and predictions
         net.setInput(blob)
         start = datetime.datetime.now()
         outs = net.forward(get_output_layers(net))
         end = datetime.datetime.now()
-        print(end-start)
+        # print(end-start)
         for out in outs:
             for detection in out:
                 scores = detection[5:]
@@ -147,13 +150,21 @@ while True:
         #     (success, box) = bb
         #     (x, y, w, h) = box
         #     draw_prediction(frame, 0, 1, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
-        withSafeState = True if count == 4 or count == 8 or count == 12 or count == 15 else False
+        withSafeState = True if count == 4 or count == 12 else False
         objboxes = om.update(frame, withSafeState)
         # print(objboxes)
-        for (success, box, id, confidence) in objboxes:
+        # dangerGlobal = False
+        for (success, box, id, danger) in objboxes:
             # print(success, box)
-            (x, y, w, h) = box
-            draw_prediction(frame, id, confidence, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
+            if success is not True:
+                om.deleteObjById(id)
+            else:
+                (x, y, w, h) = box
+                draw_prediction(frame, id, danger, int(round(x)), int(round(y)), int(round(x+w)), int(round(y+h)))
+                # if danger:
+                #     dangerGlobal = True
+        # if dangerGlobal:
+        #     cv2.imwrite("danger-detection.jpg", frame)
     # show the output frame
     cv2.imshow("Object detector", frame)
     key = cv2.waitKey(1) & 0xFF
