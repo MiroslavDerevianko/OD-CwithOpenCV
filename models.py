@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import cv2
 import datetime
 import math
@@ -7,9 +7,10 @@ from collections import deque
 
 class Object:
     MAX_STATE_NUMB = 4
-    MIN_CHANGE_DU = 2 # small changes we dont have detect as danger
-    MAX_DIS_VALUE = 4 # maximal values of dispercy
-    MIN_DIS_VALUE = 1 # minimal values of dispercy
+    MIN_CHANGE_DU = 3 # small changes we dont have detect as danger
+    MAX_TIMES_CHANGE_DU = 2 # times changes speed
+    MIN_DIS_VALUE = 3 # minimal values of dispercy
+    MAX_TIMES_CHANGE_DIS = 2 # times changes dispercy
     # previous state of  X and Y
     prevX = None
     prevY = None
@@ -30,8 +31,8 @@ class Object:
     
     def __init__(self, id, frame, bbox, confidence):
         self.id = id
-        self.states = deque([], self.MAX_STATE_NUMB)
-        self.addState(bbox)
+        # self.states = deque([], self.MAX_STATE_NUMB)
+        # self.addState(bbox)
         self.confidence = confidence
         self.bbox = bbox
         # creating tracker
@@ -64,7 +65,7 @@ class Object:
     def updateTracker(self, frame, withSafeState):
         (success, box) = self.tracker.update(frame)
         if success == True:
-            self.addState(box)
+            # self.addState(box)
             self.bbox = box
             self.calculation(box, withSafeState)
         else:
@@ -73,13 +74,13 @@ class Object:
     def reinitTracker(self, frame, bbox):
         self.tracker = cv2.TrackerCSRT_create()
         self.tracker.init(frame, bbox)
-        self._clearStates()
+        # self._clearStates()
         # self.addState(bbox)
         # self._clearParams(bbox)
         self.updateTracker(frame, True)
 
-    def _clearStates(self):
-        self.states.clear()
+    # def _clearStates(self):
+    #     self.states.clear()
 
     def _clearParams(self, bbox):
         (x, y) = self._getCenter(bbox)
@@ -89,11 +90,11 @@ class Object:
         self.dYm = None
         self.disDx = None
         self.disDy = None
-    def addState(self, bbox):
-        self.states.append(bbox)
-        if (len(self.states) == self.MAX_STATE_NUMB):
-            for i in range(0, len(self.states) -1):
-                self.states.popleft()
+    # def addState(self, bbox):
+    #     self.states.append(bbox)
+    #     if (len(self.states) == self.MAX_STATE_NUMB):
+    #         for i in range(0, len(self.states) -1):
+    #             self.states.popleft()
 
     def calculation(self, bbox, withSafeState):
         self._calcDXY(bbox, withSafeState)
@@ -108,7 +109,7 @@ class Object:
                     currDx = abs(x - self.prevX)
                     currDy = abs(y - self.prevY)
                     if (abs(currDx) > self.MIN_CHANGE_DU and abs(oldDx) > self.MIN_CHANGE_DU) and (abs(currDy) > self.MIN_CHANGE_DU and abs(oldDy) > self.MIN_CHANGE_DU):
-                        if abs(currDx) > 2 * abs(oldDx) or abs(currDy) > 2 * abs(oldDy):
+                        if abs(currDx) > self.MAX_TIMES_CHANGE_DU * abs(oldDx) or abs(currDy) > self.MAX_TIMES_CHANGE_DU * abs(oldDy):
                             self.dangerSpeed = True
                             print("Speed", self.id)
                             print(currDx, oldDx)
@@ -118,8 +119,8 @@ class Object:
                     
                     self.dXm = (currDx + oldDx) / 2
                     self.dYm = (currDy + oldDy) / 2
-                    self._calcDis(abs(currDx - self.dXm), abs(currDy - self.dYm))
-                    
+                    # self._calcDis(abs(currDx - self.dXm), abs(currDy - self.dYm))
+                    self._calcDis(currDx, currDy)
                     self.prevX = x
                     self.prevY = y
                 else:
@@ -132,10 +133,13 @@ class Object:
 
     def _calcDis(self, disX, disY):
         if self.disDx != None and self.disDy != None:
-            newdisDx = (disX + self.disDx) / 2
-            newdisDy = (disY + self.disDy) / 2
+            # newdisDx = (disX + self.disDx) / 2
+            # newdisDy = (disY + self.disDy) / 2
+            newdisDx = math.sqrt( disX**2 + self.dXm**2 )
+            newdisDy = math.sqrt( disY**2 + self.dYm**2 )
+
             if abs(disX) > self.MIN_DIS_VALUE and abs(self.disDx) > self.MIN_DIS_VALUE and abs(disY) > self.MIN_DIS_VALUE and abs(self.disDy) > self.MIN_DIS_VALUE:
-                if  abs(disX) > 2 * abs(self.disDx) or abs(disY) > 2 * abs(self.disDy):
+                if  abs(disX) > self.MAX_TIMES_CHANGE_DIS * abs(self.disDx) or abs(disY) > self.MAX_TIMES_CHANGE_DIS * abs(self.disDy):
                     self.dangerAccuracy = True
                     print("Accuracy", self.id)
                     print(disX, self.disDx)
@@ -151,18 +155,26 @@ class Object:
     def isDanger(self):
         return self.dangerSpeed or self.dangerAccuracy
     
+    def setThesholdSettings(self, minDU, maxDU, minDis, maxDis):
+        self.MIN_CHANGE_DU = minDU
+        self.MAX_TIMES_CHANGE_DU = maxDU
+        self.MIN_CHANGE_DU = minDis
+        self.MAX_TIMES_CHANGE_DIS = maxDis
+
 class ObjectManager:
 
     # min values of x and y when new detection is currently exist in objects
     MIN_DELTA_X = 35 # percent of min change on X center
     MIN_DELTA_Y = 35 # percent of min changes on Y center
+    thresholds = [3, 2, 3, 2] # default threshhold [ minDU, maxDU, minDis, maxDis ]
 
     def __init__(self):
-        # init start of IDs
+        self.clear()
+    
+    def clear(self):
         self.emptyID = 0
         self.listOfObject = []
-        self.lastCalulationTime = None
-    
+
     def getList(self):
         return self.listOfObject
 
@@ -176,12 +188,24 @@ class ObjectManager:
         id = self.emptyID
         self.emptyID += 1
         return id
+
     def deleteObjById(self, id):
         print('delete')
         for i in range(0, len(self.listOfObject)):
             if (self.listOfObject[i].getId() == id):
                 del self.listOfObject[i]
                 break
+
+    def updateThesholds(self):
+        for obj in self.listOfObject:
+            obj.setThesholdSettings(*self.thresholds)
+
+    def setThesholdSettings(self, minDU, maxDU, minDis, maxDis):
+        self.thresholds = [minDU, maxDU, minDis, maxDis]
+        self.updateThesholds()
+
+    def getThresholds(self):
+        return self.thresholds
 
     def _createListOfObject(self, frame, boxes, confidences, indices):
         listobj = []
@@ -225,6 +249,7 @@ class ObjectManager:
         if len(self.listOfObject) == 0:
             for i in indices:
                 newobj = Object(self._getFreeId(), frame, boxes[i[0]], confidences[i[0]])
+                newobj.setThesholdSettings(*self.thresholds)
                 self.listOfObject.append(newobj)
         else:
             newlist = []
