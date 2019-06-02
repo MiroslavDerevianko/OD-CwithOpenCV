@@ -105,7 +105,7 @@ class GUI:
         return self.currCamera.get()
 
     def _chooseCamera(self):
-        self.cameraLabel.config(text=self._getCamera())
+        print(self._getCamera())
 
     def _initChooseCamera(self, frame):
         cameras = Detector.getAllCams()
@@ -117,8 +117,9 @@ class GUI:
             option = OptionMenu(frame, self.currCamera, *cameras)
             button = Button(frame, **self.buttonOpts, text="Choose", command=self._chooseCamera)
             label.grid(row=2, column=0, sticky=W, pady=10)
-            option.pack(row=2, column=1)
-            button.pack(row=2, column=2)
+            option.grid(row=2, column=1)
+            button.grid(row=2, column=2)
+
     
     def _setWeightsPath(self, path):
         self.currWeightsPath = path
@@ -187,7 +188,6 @@ class GUI:
             self.detector.setCamera(self._getCamera())
         if self._getSource() == 'video':
             self.detector.setSourceType(self._getSource())
-            print(self._getVideoPath())
             self.detector.setVideoPath(self._getVideoPath())
         self.detector.setNetWeights(self._getWeightsPath())
         self.detector.setNetConfig(self._getConfigPath())
@@ -199,7 +199,7 @@ class GUI:
             self._setIsCreated(True)
 
     def _initCreateBtn(self, frame):
-        open = Button(frame, **self.buttonOpts, text="Create instance", command=self._createInstance)
+        open = Button(frame, **self.buttonOpts, text="Create", command=self._createInstance)
         open.grid(row=6, column=0, columnspan=3)
     
     def _getStatus(self):
@@ -217,11 +217,24 @@ class GUI:
             self._initTreshholdsSettings(rightFrame)
     
     def _startDetection(self):
-        self.detector.start()
+        if self.detector.isRun() != True:
+            self.isRunning = True
+            self.detector.start()
+            self._update()
+
+    def _stopDetection(self):
+        if self.detector.isRun() == True:
+            self.isRunning = False
+            self.detector.stop()
+            self._update()
 
     def _initStartBtn(self, frame):
-        open = Button(frame, **self.buttonOpts, text="Start", command=self._startDetection)
-        open.grid(row=7, column=0, columnspan=3)
+        open = None
+        if self.isRunning != True:
+            open = Button(frame, **self.buttonOpts, text="Start", command=self._startDetection)
+        else:
+            open = Button(frame, **self.buttonOpts, text="Stop", command=self._stopDetection)
+        open.grid(row=7, column=2, columnspan=2)
 
     def _validateEntry(self, value):
         try: 
@@ -242,7 +255,6 @@ class GUI:
         opts = {"anchor": W, "width": 30, "padx":5,"pady": 5 }
         vcmd = (frame.register(self._validateEntry), '%S')
         threshholds = self.detector.getThresholds()
-        print(threshholds)
         entryopts = { "validate": "key", "vcmd": vcmd}
         minDulabel = Label(frame, **opts, text="Min speed change threshhold").grid(row=2, column=0, columnspan=2)
         self.minDuEntry = Entry(frame, **entryopts )
@@ -260,8 +272,8 @@ class GUI:
         self.maxDisEntry = Entry(frame, **entryopts)
         self.maxDisEntry.insert(0, threshholds[3])
         self.maxDisEntry.grid(row=5, column=2)
-        apply = Button(frame, **self.buttonOpts, text="Ok", command=self._changeThresholds)
-        apply.grid(row=6, column=0, columnspan=3)
+        apply = Button(frame, **self.buttonOpts, text="Apply", command=self._changeThresholds)
+        apply.grid(row=7, column=0, columnspan=2)
     
 gui = GUI()
 gui.start()

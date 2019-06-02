@@ -67,13 +67,17 @@ class Detector:
     def getCamera(self):
         return self.currCamera
 
+    def isRun(self):
+        return self.isRunning
+
     def _setVideoStream(self):
         if self.getSourceType() == 'video':
             self.vs = cv2.VideoCapture(self.getVideoPath())
         else: 
             if self.getSourceType() == 'camera':
-                self.vs = VideoStream(src=self.getCamera()).start()
-                time.sleep(3)
+                print("[INFO] starting video stream...")
+                self.vs = VideoStream(src=int(self.getCamera())).start()
+                time.sleep(1)
             else:
                 raise Exception('Not support source type')
     
@@ -100,31 +104,33 @@ class Detector:
             frame = frame[1] if self.getSourceType() == "video" else frame
         else:
             raise Exception("No frame")
-        # width = frame.shape[1]
-        # height = frame.shape[0]
         frame = imutils.resize(frame, width=self.Width, height=self.Height)
         return frame
     
     def start(self):
         if self.isRunning == False:
+            self.isRunning = True
             self.om.clear()
             self.thread = Thread(target=self._startDetection)
             self.thread.start()
             
-
     def _startDetection(self):
         self._setVideoStream()
         self._initNet()
         count = 0
-        self.isRunning = True
-        while True:
+        while self.isRunning:
             frame = None
             try:
                 frame = self._getFrame()
             except:
                 print("Error:", sys.exc_info()[0])
                 self.close()
-            (h, w) = frame.shape[:2]
+            if frame is None:
+                print('No frame')
+                break
+            w = frame.shape[1]
+            h = frame.shape[0]
+            
             if count > self.UPDATECOUNT:
                 count = 0
             if count == 0:
@@ -158,8 +164,13 @@ class Detector:
     
     def close(self):
         cv2.destroyAllWindows()
-        # if (self.vs != None):
-        #     self.vs.stop()
+        if self.vs != None and self.getSourceType() == "camera":
+            print("Stop video stream")
+            self.vs.stop()
+    
+    def stop(self):
+        self.isRunning = False
+        print("Detection stop")
 
     def _performOutput(self, outs, width, height, frame):
         boxes = []
